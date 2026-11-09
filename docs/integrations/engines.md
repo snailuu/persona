@@ -105,6 +105,9 @@ iOS / Android have both entry points (Android Machines is under Agents: **List s
 
 Windows: herdr has native Windows support since 0.9.5; except live terminal, capabilities match above. Orca works too. See [windows.md](../operations/windows.md), "herdr."
 
+omp (Oh My Pi) runs only with herdr (`docs/integrations/omp.md`): herdr detects its panes, and Persona starts and resumes it only
+in herdr tabs. Orca, Paseo and Herdr App neither start nor resume omp; a session in one of them is not listed.
+
 Orca's native Claude chats (structured, no terminal) connect through node's bridge: list, state, send text / images, interrupt, close,
 answer approvals / questions, change permission / thinking (no plan mode); no screen reads, keys, or live terminal. Chats appear only after their first message;
 Codex chats not listed in this version. See `docs/plans/plan-orca-support.md` ("Structured sessions").
