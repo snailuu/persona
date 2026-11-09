@@ -104,6 +104,7 @@ type Node struct {
 	launches  map[string]claudeLaunch    // herdr pane -> how Persona started its Claude, for herdr's restore (herdrresume.go)
 	resumes   resumeLocks                // one resume report at a time per herdr pane (herdrresume.go reportResume)
 	panes     map[string]string          // pane id -> session id (learned from hooks)
+	idAlias   map[string]paneAlias       // fallback row id -> the session the pane turned out to run (pifamily.go)
 	layouts   map[string]layout          // host kind -> space / slot names from its last snapshot
 	shellTabs *shellTabs                 // the sweep's memory; nil: the process's own (shelltabs.go)
 	procs     map[string]*assistantProc  // headless assistant conversations (assistant.go)
@@ -560,6 +561,18 @@ func (n *Node) handle(ctx context.Context, method string, params json.RawMessage
 	if len(params) > 0 {
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, fmt.Errorf("bad params: %w", err)
+		}
+	}
+	if strings.HasPrefix(method, "session.") && p.SessionID != "" {
+		if id := n.resolveAlias(p.SessionID); id != p.SessionID { // a fallback row the pane has since named (pifamily.go)
+			p.SessionID = id
+			var m map[string]any
+			if json.Unmarshal(params, &m) == nil {
+				m["session_id"] = id
+				if raw, err := json.Marshal(m); err == nil {
+					params = raw
+				}
+			}
 		}
 	}
 	if n.codexBlocked(p.SessionID) && (strings.HasPrefix(method, "session.") || strings.HasPrefix(method, "terminal.") || method == "assistant.send" || method == "assistant.permissions.reset") {
