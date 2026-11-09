@@ -250,3 +250,38 @@ describe("startKeys", () => {
     expect(startKeys("other", true)).toBeNull();
   });
 });
+
+describe("an agent that brings its own session id (omp, #1842)", () => {
+  it("starts with agent_type and the first message, and sends no separate message", async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(response({ session: { ...session, agent: "omp" } }));
+    vi.stubGlobal("fetch", fetcher);
+    const id = launchAgent({ ...input, launcher: "omp", agent: "omp", text: "看一下这个项目" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(fetcher.mock.calls[0][1].body);
+    expect(body).toMatchObject({ launcher: "omp", agent_type: "omp", prompt: "看一下这个项目" });
+    expect(body).not.toHaveProperty("async");
+    expect(body).not.toHaveProperty("name_hint");
+    expect(getState().launches[id].phase).toBe("ready");
+  });
+
+  it("refuses attachments up front instead of failing after the start", async () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal("fetch", fetcher);
+    const id = launchAgent({ ...input, launcher: "omp", agent: "omp", attachments: [pickAttachment(new File(["image"], "figure.png", { type: "image/png" }))] });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(getState().launches[id].phase).toBe("failed");
+  });
+
+  it("a Claude launcher still starts in the background with its first message as a message", async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(response({ session })).mockResolvedValueOnce(response({}));
+    vi.stubGlobal("fetch", fetcher);
+    launchAgent({ ...input, launcher: "claude", agent: "claude" });
+    await vi.advanceTimersByTimeAsync(0);
+    const body = JSON.parse(fetcher.mock.calls[0][1].body);
+    expect(body).toMatchObject({ launcher: "claude", async: true });
+    expect(body).not.toHaveProperty("agent_type");
+    expect(body).not.toHaveProperty("prompt");
+  });
+});

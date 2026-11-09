@@ -15,6 +15,10 @@ export interface AgentLaunch {
   machineId: string;
   cwd: string;
   launcher: string;
+  /** The agent the launcher runs (launcher-models.ts launcherAgent): "" or "claude": Claude Code, started in the
+   *  background with its first message as an ordinary message. An agent with a session id of its own (codex, omp) is
+   *  started with its first message in `prompt` and `agent_type` set. */
+  agent?: string;
   /** Picked in "New agent" for this start only (launcher-models.ts startPicks); none: the launcher's own. */
   model?: string;
   effort?: string;
@@ -39,7 +43,7 @@ export interface AgentLaunch {
   draft?: string;
 }
 
-export function launchAgent(input: Pick<AgentLaunch, "machineId" | "cwd" | "launcher" | "model" | "effort" | "permissionMode" | "host" | "ultracode" | "text" | "attachments" | "todoId">) {
+export function launchAgent(input: Pick<AgentLaunch, "machineId" | "cwd" | "launcher" | "agent" | "model" | "effort" | "permissionMode" | "host" | "ultracode" | "text" | "attachments" | "todoId">) {
   const launch: AgentLaunch = { ...input, id: `local-${uuid()}`, phase: "creating", uploaded: {} };
   putLaunch(launch);
   navigate({ name: "session", mid: launch.machineId, sid: launch.id });
@@ -80,15 +84,24 @@ export async function deliverLaunch(id: string, clearDraft?: string) {
     if (imageBytes + new TextEncoder().encode(launch.text).byteLength > 31 * 1024 * 1024) throw new Error(t("lib-new-agent.attachments_too_large_start"));
     if (!launch.session) {
       let session: Session;
+      // Only Claude Code has a session id before it starts: it is started in the background and the first message goes
+      // as an ordinary message once it is up. Another agent (codex, omp) picks its own id, so it starts with the first
+      // message in `prompt` and `agent_type` set (#1842).
+      const withPrompt = Boolean(launch.agent) && launch.agent !== "claude";
+      // An agent started with its first message takes no uploads: there is no transcript for Persona to attach a file to.
+      if (withPrompt && launch.attachments.length) throw new Error(t("lib-new-agent.launcher_no_attachments"));
       try {
-        const r = await api<{ session: Session }>("/sessions", { method: "POST", signal: controller.signal, json: { machine_id: launch.machineId, cwd: launch.cwd, launcher: launch.launcher || undefined, model: launch.model || undefined, effort: launch.effort || undefined, permission_mode: launch.permissionMode || undefined, host: launch.host || undefined, ultracode: launch.ultracode === true ? true : undefined, async: true, name_hint: launch.text || undefined, todo_id: launch.todoId || undefined } });
+        const r = await api<{ session: Session }>("/sessions", { method: "POST", signal: controller.signal, json: withPrompt
+          ? { machine_id: launch.machineId, cwd: launch.cwd, launcher: launch.launcher || undefined, agent_type: launch.agent, model: launch.model || undefined, host: launch.host || undefined, prompt: launch.text || undefined, todo_id: launch.todoId || undefined }
+          : { machine_id: launch.machineId, cwd: launch.cwd, launcher: launch.launcher || undefined, model: launch.model || undefined, effort: launch.effort || undefined, permission_mode: launch.permissionMode || undefined, host: launch.host || undefined, ultracode: launch.ultracode === true ? true : undefined, async: true, name_hint: launch.text || undefined, todo_id: launch.todoId || undefined } });
         session = r.session;
+        if (withPrompt) update({ outgoing: { text: "", images: [] } });
       } catch (e) {
         if (!(e instanceof ApiError) || e.code !== "codex_needs_prompt") throw e;
         if (launch.attachments.length) throw new Error(t("lib-new-agent.launcher_no_attachments"));
         if (!launch.text) throw new Error(t("lib-new-agent.launcher_needs_text"));
         // A Codex start takes the picked model but no effort.
-        const r = await api<{ session: Session }>("/sessions", { method: "POST", signal: controller.signal, json: { machine_id: launch.machineId, cwd: launch.cwd, launcher: launch.launcher || undefined, model: launch.model || undefined, host: launch.host || undefined, prompt: launch.text, todo_id: launch.todoId || undefined } });
+        const r = await api<{ session: Session }>("/sessions", { method: "POST", signal: controller.signal, json: { machine_id: launch.machineId, cwd: launch.cwd, launcher: launch.launcher || undefined, agent_type: "codex", model: launch.model || undefined, host: launch.host || undefined, prompt: launch.text, todo_id: launch.todoId || undefined } });
         session = r.session;
         update({ outgoing: { text: "", images: [] } });
       }
