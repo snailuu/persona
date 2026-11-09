@@ -234,6 +234,10 @@ func (n *Node) sessionList(ctx context.Context, refreshAgents bool) []proto.Sess
 		n.decorate(&s)
 		out = append(out, s)
 	}
+	for _, s := range n.ompOfflineRows(seen) { // omp's stopped sessions (ompdisk.go)
+		n.decorate(&s)
+		out = append(out, s)
+	}
 	// Terminal-owned Codex parents were already seen before history was added.
 	resolveCodexHierarchy(out)
 	var keptSessions []proto.Session
