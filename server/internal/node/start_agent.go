@@ -19,13 +19,19 @@ type agentLauncher struct {
 	AgentType string `json:"agent_type,omitempty"`
 }
 
-// launcherAgentType is the agent a launcher starts when nothing else says: codex and traex by name, else claude.
+// launcherAgentType is the agent a launcher starts when nothing else says: codex, traex and omp by name, else claude.
+// omp (Oh My Pi) takes neither Claude Code's flags nor its own session id, so it is a kind of its own: it would
+// otherwise be started as `omp --session-id … --mcp-config …` and exit on the unknown flags.
 func launcherAgentType(name string) string {
-	if name == "codex" || name == traexAgent {
+	if name == "codex" || name == traexAgent || name == ompAgent {
 		return name
 	}
 	return "claude"
 }
+
+// ompAgent is Oh My Pi on the PATH (launchers.go lists it by itself). Its own start form is `omp [prompt]` and its
+// resume form `omp --resume <id or prefix>`, with the conversation in ~/.omp/agent/sessions (not a Claude transcript).
+const ompAgent = "omp"
 
 func typedLaunchers(list []proto.Launcher) []agentLauncher {
 	out := make([]agentLauncher, 0, len(list))
@@ -43,10 +49,16 @@ func typedLaunchers(list []proto.Launcher) []agentLauncher {
 	return out
 }
 
-func otherAgentCommand(launcher, resume, prompt string) string {
+// otherAgentCommand is how a non-Claude agent is started in a pane: its launcher, then a resume, then the first message
+// as an argument. A compatible CLI resumes with `resume <id>`; omp resums with `--resume <id>` (start_agent.go).
+func otherAgentCommand(kind, launcher, resume, prompt string) string {
 	cmd := launcher
 	if resume != "" {
-		cmd += " resume " + shellQuote(resume)
+		if kind == ompAgent {
+			cmd += " --resume " + shellQuote(resume)
+		} else {
+			cmd += " resume " + shellQuote(resume)
+		}
 	}
 	if prompt != "" {
 		cmd += " " + shellQuote(prompt)
@@ -74,7 +86,7 @@ func (n *Node) startOtherAgent(ctx context.Context, launch host.Launcher, cwd, l
 	// A Codex wrapper is told to herdr as Codex (hostherdr.go); a compatible CLI is herdr's to detect. The node's
 	// directory in front, the assistant's environment left out (agentenv.go).
 	shells := paneShells(ctx)
-	cmd := withHerdrAgent(typedHerdrAgent(launch, kind, shells...), otherAgentCommand(launcher, resume, prompt))
+	cmd := withHerdrAgent(typedHerdrAgent(launch, kind, shells...), otherAgentCommand(kind, launcher, resume, prompt))
 	// Not in the agent sandbox (agentsandbox.go).
 	n.notePaneStart(launcher)
 	done, err := n.runAgentCommand(ctx, launch, created, ws, "", n.agentCommand(cmd, shellQuote, shells...), shells...) // typedstart.go

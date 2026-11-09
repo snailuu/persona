@@ -50,9 +50,10 @@ const herdrPaneEnv = nodeclient.HerdrPaneEnv
 const herdrAgentEnv = "HERDR_AGENT"
 
 // herdrAgentName is what herdr calls an agent of kind, "" for one it has no integration for (a compatible CLI, pi: left to its
-// own detection) and on Windows, where herdr does not read HERDR_AGENT.
+// own detection) and on Windows, where herdr does not read HERDR_AGENT. herdr has an integration for omp of its own
+// (`herdr agent start --kind omp`), so omp is named as omp rather than as the Claude it is not.
 func herdrAgentName(kind string) string {
-	if runtime.GOOS != "windows" && (kind == "claude" || kind == "codex") {
+	if runtime.GOOS != "windows" && (kind == "claude" || kind == "codex" || kind == ompAgent) {
 		return kind
 	}
 	return ""

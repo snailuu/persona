@@ -831,10 +831,21 @@ func (n *Node) handle(ctx context.Context, method string, params json.RawMessage
 			s, err := n.startOnEngineRuntime(ctx, rp)
 			return map[string]any{"session": s}, err
 		}
-		// Only Claude Code has a session id before it starts; another agent picks its own (start_agent.go).
-		if p.Async && p.ResumeSessionID == "" && (p.AgentType == "" || p.AgentType == "claude") {
-			s, err := n.startAsyncIn(p.Host, p.SessionID, p.Cwd, p.Launcher, p.Prompt, p.WorkspaceID, p.PermissionMode, p.Effort, tab, modelExecution{Model: p.Model, Effort: p.Effort, UseEffort: p.ModelFingerprint != "", Fingerprint: p.ModelFingerprint, Ultracode: p.Ultracode})
-			return map[string]any{"session": s}, err
+		// Only Claude Code has a session id before it starts; another agent picks its own (start_agent.go). The kind is
+		// worked out from the launcher here and not only inside start: a node-discovered launcher (omp, traex) reaches
+		// this from an app that sends no agent_type, and an async start for one answers with a Claude session id that
+		// nothing will ever write to (#1842). Such a start is refused with the code the apps already retry
+		// synchronously with their first message, rather than answered with a session that cannot send.
+		startKind := p.AgentType
+		if startKind == "" {
+			startKind = launcherAgentType(p.Launcher)
+		}
+		if p.Async && p.ResumeSessionID == "" {
+			if startKind == "claude" {
+				s, err := n.startAsyncIn(p.Host, p.SessionID, p.Cwd, p.Launcher, p.Prompt, p.WorkspaceID, p.PermissionMode, p.Effort, tab, modelExecution{Model: p.Model, Effort: p.Effort, UseEffort: p.ModelFingerprint != "", Fingerprint: p.ModelFingerprint, Ultracode: p.Ultracode})
+				return map[string]any{"session": s}, err
+			}
+			return nil, refusal("codex_needs_prompt", fmt.Sprintf("%s 的会话要连第一条消息一起发（更新 App 后再试）。", startKind), nil)
 		}
 		s, err := n.start(ctx, p.Cwd, p.Launcher, p.Prompt, p.ResumeSessionID, p.WorkspaceID, p.PermissionMode, p.Effort, tab, "", p.AgentType, modelExecution{Model: p.Model, Effort: p.Effort, UseEffort: p.ModelFingerprint != "", Fingerprint: p.ModelFingerprint, Ultracode: p.Ultracode})
 		return map[string]any{"session": s}, err

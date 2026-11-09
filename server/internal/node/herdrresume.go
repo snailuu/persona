@@ -87,19 +87,28 @@ func (n *Node) claudeResumeArgv(spec claudeLaunch, id string) (argv []string, ok
 	return []string{"eval", cmd}, true
 }
 
-// agentResumeArgv is the resume_argv for an agent Persona started (Claude, Codex, a compatible CLI, pi); a Codex gets
-// HERDR_AGENT=codex like Claude.
+// agentResumeArgv is the resume_argv for an agent Persona started (Claude, Codex, a compatible CLI, omp, pi); a Codex
+// gets HERDR_AGENT=codex like Claude, and omp HERDR_AGENT=omp, which herdr has an integration for.
 func (n *Node) agentResumeArgv(spec agentLaunch, id string) (argv []string, ok bool) {
 	kind := spec.Agent
 	if kind == "" || kind == "claude" {
 		return n.claudeResumeArgv(spec, id)
 	}
-	cmd := withHerdrAgent(resumeHerdrAgent(kind), n.launcherCommandQ(spec.Launcher, dquote)+" resume "+id)
+	cmd := withHerdrAgent(resumeHerdrAgent(kind), n.launcherCommandQ(spec.Launcher, dquote)+" "+resumeArgs(kind, id))
 	cmd = n.agentCommand(cmd, dquote, herdrPaneShell())
 	if strings.Contains(cmd, "'") || !validID(id) {
 		return nil, false
 	}
 	return []string{"eval", cmd}, true
+}
+
+// resumeArgs is how an agent of kind resumes session id on its own command line: `resume <id>` for a compatible CLI,
+// `--resume <id>` for omp (which takes no subcommand, start_agent.go).
+func resumeArgs(kind, id string) string {
+	if kind == ompAgent {
+		return "--resume " + id
+	}
+	return "resume " + id
 }
 
 // resumeHerdrAgent is the HERDR_AGENT in front of a resume_argv (hostherdr.go): herdr types the argv into the shell it

@@ -76,6 +76,12 @@ The script frames what it prints with begin/end markers, and node reads only bet
   network mount): past them the last scan's scripts stand.
 - **Codex** (since 2026-11-02): If `codex` is on PATH, add `codex`, plus aliases running only one `codex` command, after the Claude entries, with `agent: "codex"`.
   See `docs/integrations/codex.md`, “Creating sessions from the phone,” for creating Codex sessions from the phone.
+- **omp** (Oh My Pi, since 2026-11-09): if `omp` is on PATH, add `omp` with `agent: "omp"`. It is not a Claude-compatible
+  CLI: it takes neither `--session-id` nor `--settings` / `--mcp-config` / `--allowedTools`, so it is started with its first
+  message as the argument (`omp '<first message>'`) and resumed with `--resume <id>` (`node/start_agent.go`,
+  `node/herdrresume.go`); herdr is told `HERDR_AGENT=omp`, which it has an integration for. Its conversation is
+  `~/.omp/agent/sessions/<escaped cwd>/<timestamp>_<id>.jsonl`, which nothing here reads yet: an omp session is listed
+  with its terminal only, and sending to it is refused as `terminal_only` (`node/opencode.go`).
 - Not launchers: an alias named exactly `claude`, aliases running an internal Codex-fork CLI, Codex aliases doing other work (`cd x && codex`),
   or unrelated aliases (`ll`, `gst`…). If none exist, only default `claude` appears.
 - The list contains only names, gateways, and models; keys / tokens in aliases never leave node. “View definition” displays the alias text from `whence -f`, with keys redacted as usual.
