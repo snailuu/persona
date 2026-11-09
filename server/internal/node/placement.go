@@ -323,7 +323,7 @@ func (n *Node) setAgentsAt(agents []host.Agent, epoch uint64, heard map[string]b
 		return n.sessionFromKnownProcess(pane)
 	}
 	m, onList := map[string]host.Agent{}, map[string]bool{}
-	var unknown, codex, pi, opencode, botmux []host.Agent
+	var unknown, codex, family, opencode, botmux []host.Agent
 	other := map[string]host.Agent{} // terminal-only agents by their row id (opencode.go)
 	contested := contest{}           // sessions live in two hosts at once: an owner is picked below (ownership.go)
 	procs := n.liveClaudes()
@@ -354,8 +354,8 @@ func (n *Node) setAgentsAt(agents []host.Agent, epoch uint64, heard map[string]b
 			codex = append(codex, a)
 			continue
 		}
-		if a.Agent == piAgent { // its session: herdr's pi integration, or the extension in it (pi.go)
-			pi = append(pi, a)
+		if piFamily(a.Agent) { // its session: herdr's integration, or the extension in it (pi.go, pifamily.go)
+			family = append(family, a)
 			continue
 		}
 		if a.Agent == opencodeAgent { // its session: herdr's opencode plugin, or the Persona plugin in the server (opencode.go)
@@ -406,8 +406,12 @@ func (n *Node) setAgentsAt(agents []host.Agent, epoch uint64, heard map[string]b
 	}
 	n.notePanes(unknown)
 	n.mu.Unlock()
-	for _, a := range pi {
-		if id := n.piSession(a); id != "" {
+	for _, a := range family {
+		id := n.piSession(a)
+		if id == "" {
+			id = otherSession(a) // nothing reported its session yet: the pane is the row, terminal only (pi.go)
+		}
+		if id != "" {
 			if _, taken := m[id]; !taken {
 				m[id] = a
 			}
