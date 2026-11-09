@@ -553,11 +553,35 @@ func (n *Node) setAgentsAt(agents []host.Agent, epoch uint64, heard map[string]b
 		live[a.PaneID] = true
 		if old := was[a.PaneID]; old != "" && old != id && !validID(old) && piFamily(a.Agent) {
 			n.idAlias[old] = paneAlias{id: id, pane: a.PaneID}
+			// The pane is the session's now: herdr's restore and a later send find the real id (herdrresume.go stays
+			// out of a fallback id it cannot resume).
+			n.panes[a.PaneID] = id
+			if st, ok := n.state.get(old); ok {
+				st.Pane = a.PaneID
+				n.state.put(id, st)
+			}
+			if l, ok := n.launches[a.PaneID]; ok && l.ID == old {
+				l.ID = id
+				n.launches[a.PaneID] = l
+			}
 		}
 	}
 	for fallback, alias := range n.idAlias {
 		if !live[alias.pane] {
 			delete(n.idAlias, fallback) // its pane is gone: nothing is left to point at
+		}
+	}
+	// herdr's omp integration reports the session file: what resuming a stopped one needs (ompresume.go).
+	if n.ompFiles == nil {
+		n.ompFiles = map[string]string{}
+	}
+	for _, a := range agents {
+		if a.Agent == ompAgent {
+			if p := a.SessionPath(); p != "" {
+				if id := a.SessionID(); id != "" {
+					n.ompFiles[id] = p
+				}
+			}
 		}
 	}
 	n.agents = m
