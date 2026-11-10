@@ -55,10 +55,25 @@ func (n *Node) start(ctx context.Context, cwd, launcher, prompt, resume, workspa
 	if kind == "" {
 		kind = launcherAgentType(launcher)
 	}
-	if kind != "claude" && kind != "codex" && kind != traexAgent {
+	if kind != "claude" && kind != "codex" && kind != traexAgent && kind != ompAgent {
 		return nil, fmt.Errorf("unsupported agent type %q", kind)
 	}
+	if kind == ompAgent { // start_agent.go: omp's own command, and none of a Claude start's options
+		if execution.Model != "" || mode != "" || effort != "" || wantsUltracode(execution.Ultracode) {
+			return nil, refusal("omp_options", ompOptionsRefusal, nil)
+		}
+		if resume != "" {
+			if a, ok := n.agent(resume); ok {
+				return n.sessionFor(resume, a), nil // already running
+			}
+			// A stopped omp has no session file here yet: refuse rather than guess which conversation to resume.
+			return nil, refusal("omp_resume_unknown", "这个 omp 会话找不到会话文件，请在电脑上恢复，这次没有发送。", nil)
+		}
+	}
 	argv, codex := n.codexLauncher(ctx, launcher)
+	if kind == ompAgent && codex { // an omp start must not run Codex: it would get the first message and its session back
+		return nil, fmt.Errorf("omp cannot start with the Codex launcher %q", launcher)
+	}
 	if mode == "plan" {
 		if codex && kind != traexAgent {
 			if argv, err = n.codexReadonlyArgs(launcher, argv, mode); err != nil {
