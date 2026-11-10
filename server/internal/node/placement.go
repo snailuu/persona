@@ -522,6 +522,13 @@ func (n *Node) setAgentsAt(agents []host.Agent, epoch uint64, heard map[string]b
 			m[id] = a
 		}
 	}
+	// Session state moved to a pane's real id is written once mu is released: a write tells the hub (stateFile.persist).
+	var moved []func()
+	defer func() {
+		for _, put := range moved {
+			put()
+		}
+	}()
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.engEpoch != epoch {
@@ -558,7 +565,7 @@ func (n *Node) setAgentsAt(agents []host.Agent, epoch uint64, heard map[string]b
 			n.panes[a.PaneID] = id
 			if st, ok := n.state.get(old); ok {
 				st.Pane = a.PaneID
-				n.state.put(id, st)
+				moved = append(moved, func() { n.state.put(id, st) })
 			}
 			if l, ok := n.launches[a.PaneID]; ok && l.ID == old {
 				l.ID = id
