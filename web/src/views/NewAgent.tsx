@@ -675,7 +675,7 @@ export function NewAgent({ open, onClose, preset }: { open: boolean; onClose: ()
             </Field>
           )}
 
-          {listLauncher && models.status !== "idle" && !(models.status === "ready" && !models.list?.models.length && !typing && !lockedTyping) && (
+          {agent !== "omp" && listLauncher && models.status !== "idle" && !(models.status === "ready" && !models.list?.models.length && !typing && !lockedTyping) && (
             <Field label={t("newagent.model")}><ModelPicker
               models={models}
               model={model}

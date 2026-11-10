@@ -171,7 +171,7 @@ func (n *Node) sessionList(ctx context.Context, refreshAgents bool) []proto.Sess
 		if a.Agent == "codex" {
 			n.codexEffortRow(id, &s.Efforts, &s.Effort, rollout) // joined on its app-server: its effort (codex_effort.go)
 		}
-		if a.Agent == piAgent {
+		if piFamily(a.Agent) {
 			n.mergePiRow(&s) // its conversation is the extension's (pi.go)
 		}
 		switch {
@@ -231,6 +231,10 @@ func (n *Node) sessionList(ctx context.Context, refreshAgents bool) []proto.Sess
 	offlineRows := n.offline(seen)
 	n.markInterrupted(offlineRows, seen) // the restart cut these off (#1917)
 	for _, s := range offlineRows {
+		n.decorate(&s)
+		out = append(out, s)
+	}
+	for _, s := range n.ompOfflineRows(seen) { // omp's stopped sessions (ompdisk.go)
 		n.decorate(&s)
 		out = append(out, s)
 	}

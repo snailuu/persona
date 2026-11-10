@@ -4,6 +4,10 @@ Sessions from [pi](https://pi.dev) (`@earendil-works/pi-coding-agent`) and its w
 lists and status, chat content (text, thinking, tool calls and results, images), token-by-token output, sending messages from the phone, interrupting, renaming, creating sessions in pi-web,
 and answering pi questions (`ask_user`) and approving tools you specify from the phone.
 
+**pi family**: [omp (Oh My Pi)](omp.md) is a pi fork and uses the same extension API, conversation model and Persona host code
+(`integrations/pi/lib/pi.js`), under its own identity. It has no pi-web and no companion process; node reads its stopped sessions
+from disk. Its doc covers installation, settings, session ids and resume, and what differs from pi.
+
 Supported since 2026-11-01 (issue #170). pi is the second integration under the runtime specification (`docs/integrations/runtimes.md`): `integrations/pi/` contains a pi extension and a small companion process,
 both built on `integrations/runtime-sdk/`. pi follows the route of whichever host manages it:
 

@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -55,10 +56,45 @@ func (n *Node) start(ctx context.Context, cwd, launcher, prompt, resume, workspa
 	if kind == "" {
 		kind = launcherAgentType(launcher)
 	}
-	if kind != "claude" && kind != "codex" && kind != traexAgent {
+	if kind != "claude" && kind != "codex" && kind != traexAgent && kind != ompAgent {
 		return nil, fmt.Errorf("unsupported agent type %q", kind)
 	}
+	if kind == ompAgent { // start_agent.go: omp's own command, and none of a Claude start's options
+		if execution.Model != "" || mode != "" || effort != "" || wantsUltracode(execution.Ultracode) {
+			return nil, refusal("omp_options", ompOptionsRefusal, nil)
+		}
+		if resume != "" {
+			if a, ok := n.agent(resume); ok {
+				return n.sessionFor(resume, a), nil // already running
+			}
+			// The guards a resume of any other agent passes (below): a session open elsewhere or owned by a runtime
+			// is not started again, and not on Orca.
+			if r := n.openElsewhereRefusal(resume); r != nil {
+				return nil, r
+			}
+			if _, _, known := n.runtimes.belongs(resume); known {
+				return nil, refusal("runtime_session", "这个会话属于另一个工具（例如 Orca 的原生对话），请在那里继续，这次没有启动。", nil)
+			}
+			if n.startKind(ctx) == proto.EngineOrca {
+				return nil, refusal("orca_resume", "Orca 上只能从手机继续 Claude 会话：其它 Agent 请在电脑上恢复，这次没有启动。", nil)
+			}
+			var params json.RawMessage
+			if prompt != "" {
+				params, _ = json.Marshal(map[string]any{"session_id": resume, "text": prompt})
+			}
+			if _, err := n.resumeOmp(ctx, resume, params); err != nil { // ompresume.go
+				return nil, err
+			}
+			if a, ok := n.agent(resume); ok {
+				return n.sessionFor(resume, a), nil
+			}
+			return nil, refusal("not_running", "接着这个 omp 会话后没等到它的会话行，这次没有发送。", nil)
+		}
+	}
 	argv, codex := n.codexLauncher(ctx, launcher)
+	if kind == ompAgent && codex { // an omp start must not run Codex: it would get the first message and its session back
+		return nil, fmt.Errorf("omp cannot start with the Codex launcher %q", launcher)
+	}
 	if mode == "plan" {
 		if codex && kind != traexAgent {
 			if argv, err = n.codexReadonlyArgs(launcher, argv, mode); err != nil {
