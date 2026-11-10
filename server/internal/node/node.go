@@ -107,6 +107,7 @@ type Node struct {
 	familySeen map[string]time.Time       // pi-family pane listed by its fallback id -> first seen (pifamily.go)
 	idAlias    map[string]paneAlias       // fallback row id -> the session the pane turned out to run (pifamily.go)
 	ompDisk    *ompDiskState              // omp's sessions on disk (ompdisk.go)
+	ompFiles   map[string]string          // omp session id -> the session file herdr reported (ompresume.go)
 	layouts    map[string]layout          // host kind -> space / slot names from its last snapshot
 	shellTabs  *shellTabs                 // the sweep's memory; nil: the process's own (shelltabs.go)
 	procs      map[string]*assistantProc  // headless assistant conversations (assistant.go)
@@ -150,7 +151,6 @@ type Node struct {
 	ups        uploads         // files arriving from the phone (upload.go)
 	sysOnce    sync.Once       // system: read once (metrics.go)
 	sys        proto.System
-
 	// usageRetried: when a conversation's message was last sent again after its transcript's usage was repaired
 	// (assistant_usage.go): once in a while at most. Under mu; nil until the first.
 	usageRetried map[string]time.Time
@@ -565,12 +565,22 @@ func (n *Node) handle(ctx context.Context, method string, params json.RawMessage
 			return nil, fmt.Errorf("bad params: %w", err)
 		}
 	}
-	if strings.HasPrefix(method, "session.") && p.SessionID != "" {
-		if id := n.resolveAlias(p.SessionID); id != p.SessionID { // a fallback row the pane has since named (pifamily.go)
+	if strings.HasPrefix(method, "session.") {
+		rewrite := map[string]string{}
+		if id := n.resolveAlias(p.SessionID); p.SessionID != "" && id != p.SessionID { // a fallback row the pane named (pifamily.go)
 			p.SessionID = id
+			rewrite["session_id"] = id
+		}
+		if id := n.resolveAlias(p.ResumeSessionID); p.ResumeSessionID != "" && id != p.ResumeSessionID {
+			p.ResumeSessionID = id
+			rewrite["resume_session_id"] = id
+		}
+		if len(rewrite) > 0 {
 			var m map[string]any
 			if json.Unmarshal(params, &m) == nil {
-				m["session_id"] = id
+				for k, v := range rewrite {
+					m[k] = v
+				}
 				if raw, err := json.Marshal(m); err == nil {
 					params = raw
 				}
@@ -603,6 +613,21 @@ func (n *Node) handle(ctx context.Context, method string, params json.RawMessage
 			return ok(n.interruptCodex(ctx, p.SessionID))
 		}
 	}
+	// A stopped omp the node can resume itself: its disk row answers before a runtime's memory of it does (ompcalls.go),
+	// so a runtime that has gone does not keep its session away. A session whose file a live pane may be writing is
+	// never resumed: that would start a second omp on the same session.
+	if h, _, _ := n.runtimes.belongs(p.SessionID); h == nil {
+		if d, ok := n.ompDiskSession(p.SessionID); ok {
+			if n.ompDiskWrittenByLivePane(d) {
+				return nil, refusal("omp_resume_unknown", "这个 omp 会话还在运行，不在手机上再开一个：请在电脑上继续。", nil)
+			}
+			if _, stopped := n.ompSession(p.SessionID); stopped {
+				if res, err, handled := n.ompOfflineCalls(ctx, method, p.SessionID, params); handled {
+					return res, err
+				}
+			}
+		}
+	}
 	if method == "session.retire" { // before the runtimes: a session another tool owns is refused, not handed on
 		closed, err := n.retire(ctx, p.SessionID)
 		return map[string]any{"closed": closed}, err
@@ -620,10 +645,6 @@ func (n *Node) handle(ctx context.Context, method string, params json.RawMessage
 		return nil, err
 	} else if h != nil {
 		if res, err, handled := n.runtimeHandle(ctx, h, method, params); handled {
-			return res, err
-		}
-	} else if _, ok := n.ompSession(p.SessionID); ok { // a stopped omp: a notice, no send (ompcalls.go)
-		if res, err, handled := n.ompOfflineCalls(method, p.SessionID); handled {
 			return res, err
 		}
 	} else if r, ok := n.terminalOnly(p.SessionID); ok { // a pi or opencode without its extension, any other agent (opencode.go)

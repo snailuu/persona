@@ -148,7 +148,8 @@ func TestOmpOfflineRowAndCalls(t *testing.T) {
 	if err != nil || !strings.Contains(fmt.Sprint(res), ompOfflineNotice) {
 		t.Fatalf("items %v %v", res, err)
 	}
-	if _, err := request(t, n, "session.send", map[string]any{"session_id": id, "text": "go on", "client_msg_id": "m-1"}); !isRefusal(err, "omp_resume_unknown") {
+	// A send resumes it in herdr (ompresume.go); this session's directory is gone, so it is refused before a tab.
+	if _, err := request(t, n, "session.send", map[string]any{"session_id": id, "text": "go on", "client_msg_id": "m-1"}); !isRefusal(err, "not_running") {
 		t.Fatalf("send: %v", err)
 	}
 	if got := f.trace(); len(got) != 0 {
