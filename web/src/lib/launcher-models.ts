@@ -230,6 +230,9 @@ export function fitEffort(effort: string, choices: string[]): string {
  *  Claude Code and only one the model takes. An ID the list lacks (typed, #1644) goes as it is to Claude Code and Codex,
  *  also when the list couldn't be read (`undefined`); an older hub's `null` (no picker) sends none. */
 export function startPicks(o: { agent: string; list: LauncherModels | null | undefined; model: string; effort: string; followed?: ModelBinding }): { model?: string; effort?: string } {
+  // omp (docs/integrations/omp.md) takes neither: its config.yml decides the model and thinking effort, and node refuses a start
+  // that carries them (omp_options). No model row is offered for it either.
+  if (o.agent === "omp") return {};
   const out: { model?: string; effort?: string } = {};
   const m = o.list?.models.find((x) => x.id === o.model);
   if (m) {
