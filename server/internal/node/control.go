@@ -92,6 +92,9 @@ func (n *Node) start(ctx context.Context, cwd, launcher, prompt, resume, workspa
 		}
 	}
 	argv, codex := n.codexLauncher(ctx, launcher)
+	if kind == ompAgent && codex { // an omp start must not run Codex: it would get the first message and its session back
+		return nil, fmt.Errorf("omp cannot start with the Codex launcher %q", launcher)
+	}
 	if mode == "plan" {
 		if codex && kind != traexAgent {
 			if argv, err = n.codexReadonlyArgs(launcher, argv, mode); err != nil {
