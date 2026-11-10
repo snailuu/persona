@@ -535,6 +535,26 @@ func (n *Node) setAgentsAt(agents []host.Agent, epoch uint64, heard map[string]b
 			log.Printf("agents: pane %s runs session %s now, not %s", a.PaneID, id, old)
 		}
 	}
+	// A pane first listed by its fallback id (omp-w1-p2), then by its session: a client holding the fallback row keeps
+	// working (pifamily.go).
+	if n.idAlias == nil {
+		n.idAlias = map[string]paneAlias{}
+	}
+	live := map[string]bool{}
+	for id, a := range m {
+		if a.PaneID == "" {
+			continue
+		}
+		live[a.PaneID] = true
+		if old := was[a.PaneID]; old != "" && old != id && !validID(old) && piFamily(a.Agent) {
+			n.idAlias[old] = paneAlias{id: id, pane: a.PaneID}
+		}
+	}
+	for fallback, alias := range n.idAlias {
+		if !live[alias.pane] {
+			delete(n.idAlias, fallback) // its pane is gone: nothing is left to point at
+		}
+	}
 	n.agents = m
 	n.onAgentsList = onList
 	if n.lastPanes == nil {

@@ -87,6 +87,7 @@ func (n *Node) startOtherAgent(ctx context.Context, launch host.Launcher, cwd, l
 	defer done()
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
+	var grace time.Time // when a family start gives up on the extension reporting the session (pifamily.go)
 	for {
 		select {
 		case <-ctx.Done():
@@ -110,6 +111,15 @@ func (n *Node) startOtherAgent(ctx context.Context, launch host.Launcher, cwd, l
 		n.mu.Unlock()
 		if id == "" {
 			continue
+		}
+		if piFamily(kind) && id == otherSession(agent) {
+			// The host knows the pane but not its session yet: the extension may report it in a moment.
+			if grace.IsZero() {
+				grace = time.Now().Add(piFamilyIDGrace)
+			}
+			if time.Now().Before(grace) {
+				continue
+			}
 		}
 		n.state.put(id, sessionState{Pane: pane, Launcher: launcher, Cwd: cwd, StartedAt: time.Now().UTC()})
 		n.bindPane(pane, id)
