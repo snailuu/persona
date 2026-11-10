@@ -85,6 +85,18 @@ func TestOmpStartRefusesOptions(t *testing.T) {
 	}
 }
 
+// An omp start naming a Codex launcher is refused before a tab opens: the launcher would start Codex, not omp.
+func TestOmpStartRefusesCodexLauncher(t *testing.T) {
+	n, f, home := herdrNode(t)
+	_, err := request(t, n, "session.start", map[string]any{"cwd": home, "launcher": "codex", "agent_type": "omp"})
+	if err == nil || !strings.Contains(err.Error(), "Codex launcher") {
+		t.Fatalf("err = %v", err)
+	}
+	if got := f.trace(); len(got) != 0 {
+		t.Fatalf("herdr was asked %v", got)
+	}
+}
+
 // Resuming an omp that is not running is refused until the node knows its session file (#7); nothing is started and
 // the message is not sent.
 func TestOmpResumeRefusedWithoutSessionFile(t *testing.T) {
