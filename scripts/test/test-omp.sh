@@ -15,6 +15,8 @@ for tool in herdr omp go; do
 done
 
 SESSION="persona-test-$$"
+# Go's caches stay the user's: the temp HOME below would otherwise download and build everything again.
+export GOMODCACHE="$(go env GOMODCACHE)" GOCACHE="$(go env GOCACHE)" GOPATH="$(go env GOPATH)"
 WORK=$(mktemp -d /tmp/persona-omp-XXXX) || { echo "RESULT fail: no temp directory"; exit 1; }
 export HOME="$WORK/home" XDG_CONFIG_HOME="$WORK/config" PERSONA_HOME="$WORK/persona"
 export PERSONA_RUNTIME_SOCKET="$WORK/runtime.sock"
@@ -60,7 +62,7 @@ rc=$?
 kill "$watchdog" 2>/dev/null
 wait "$watchdog" 2>/dev/null # reap it: no "Terminated" line in the output
 
-grep -E '^(LIVE |=== RUN|--- )' "$WORK/live.log"
+grep -E '^(=== RUN|--- )| LIVE ' "$WORK/live.log" # t.Logf lines are indented
 if [ "$rc" -eq 0 ]; then
   echo "RESULT ok: the node listed the omp pane"
 else
