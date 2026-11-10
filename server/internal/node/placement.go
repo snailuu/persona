@@ -323,7 +323,7 @@ func (n *Node) setAgentsAt(agents []host.Agent, epoch uint64, heard map[string]b
 		return n.sessionFromKnownProcess(pane)
 	}
 	m, onList := map[string]host.Agent{}, map[string]bool{}
-	var unknown, codex, pi, opencode, botmux []host.Agent
+	var unknown, codex, family, opencode, botmux []host.Agent
 	other := map[string]host.Agent{} // terminal-only agents by their row id (opencode.go)
 	contested := contest{}           // sessions live in two hosts at once: an owner is picked below (ownership.go)
 	procs := n.liveClaudes()
@@ -354,8 +354,8 @@ func (n *Node) setAgentsAt(agents []host.Agent, epoch uint64, heard map[string]b
 			codex = append(codex, a)
 			continue
 		}
-		if a.Agent == piAgent { // its session: herdr's pi integration, or the extension in it (pi.go)
-			pi = append(pi, a)
+		if piFamily(a.Agent) { // its session: herdr's integration, or the extension in it (pi.go, pifamily.go)
+			family = append(family, a)
 			continue
 		}
 		if a.Agent == opencodeAgent { // its session: herdr's opencode plugin, or the Persona plugin in the server (opencode.go)
@@ -406,13 +406,22 @@ func (n *Node) setAgentsAt(agents []host.Agent, epoch uint64, heard map[string]b
 	}
 	n.notePanes(unknown)
 	n.mu.Unlock()
-	for _, a := range pi {
-		if id := n.piSession(a); id != "" {
+	var fallbacks []host.Agent
+	for _, a := range family {
+		id := n.piSession(a)
+		if id == "" {
+			id = otherSession(a) // nothing reported its session yet: the pane is the row, terminal only (pi.go)
+			if id != "" {
+				fallbacks = append(fallbacks, a)
+			}
+		}
+		if id != "" {
 			if _, taken := m[id]; !taken {
 				m[id] = a
 			}
 		}
 	}
+	n.noteFamilyPanes(fallbacks)
 	for _, a := range opencode {
 		id := n.opencodeSession(a)
 		if id == "" {
@@ -513,6 +522,13 @@ func (n *Node) setAgentsAt(agents []host.Agent, epoch uint64, heard map[string]b
 			m[id] = a
 		}
 	}
+	// Session state moved to a pane's real id is written once mu is released: a write tells the hub (stateFile.persist).
+	var moved []func()
+	defer func() {
+		for _, put := range moved {
+			put()
+		}
+	}()
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.engEpoch != epoch {
@@ -529,6 +545,50 @@ func (n *Node) setAgentsAt(agents []host.Agent, epoch uint64, heard map[string]b
 	for id, a := range m {
 		if old := was[a.PaneID]; a.PaneID != "" && old != "" && old != id {
 			log.Printf("agents: pane %s runs session %s now, not %s", a.PaneID, id, old)
+		}
+	}
+	// A pane first listed by its fallback id (omp-w1-p2), then by its session: a client holding the fallback row keeps
+	// working (pifamily.go).
+	if n.idAlias == nil {
+		n.idAlias = map[string]paneAlias{}
+	}
+	live := map[string]bool{}
+	for id, a := range m {
+		if a.PaneID == "" {
+			continue
+		}
+		live[a.PaneID] = true
+		if old := was[a.PaneID]; old != "" && old != id && !validID(old) && piFamily(a.Agent) {
+			n.idAlias[old] = paneAlias{id: id, pane: a.PaneID}
+			// The pane is the session's now: herdr's restore and a later send find the real id (herdrresume.go stays
+			// out of a fallback id it cannot resume).
+			n.panes[a.PaneID] = id
+			if st, ok := n.state.get(old); ok {
+				st.Pane = a.PaneID
+				moved = append(moved, func() { n.state.put(id, st) })
+			}
+			if l, ok := n.launches[a.PaneID]; ok && l.ID == old {
+				l.ID = id
+				n.launches[a.PaneID] = l
+			}
+		}
+	}
+	for fallback, alias := range n.idAlias {
+		if !live[alias.pane] {
+			delete(n.idAlias, fallback) // its pane is gone: nothing is left to point at
+		}
+	}
+	// herdr's omp integration reports the session file: what resuming a stopped one needs (ompresume.go).
+	if n.ompFiles == nil {
+		n.ompFiles = map[string]string{}
+	}
+	for _, a := range agents {
+		if a.Agent == ompAgent {
+			if p := a.SessionPath(); p != "" {
+				if id := a.SessionID(); id != "" {
+					n.ompFiles[id] = p
+				}
+			}
 		}
 	}
 	n.agents = m

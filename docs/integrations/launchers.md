@@ -76,6 +76,11 @@ The script frames what it prints with begin/end markers, and node reads only bet
   network mount): past them the last scan's scripts stand.
 - **Codex** (since 2026-11-02): If `codex` is on PATH, add `codex`, plus aliases running only one `codex` command, after the Claude entries, with `agent: "codex"`.
   See `docs/integrations/codex.md`, “Creating sessions from the phone,” for creating Codex sessions from the phone.
+- **omp** (since 2026-11-09): If `omp` is on PATH, add `omp` with `agent_type: "omp"` (`node/launchers.go`). A start runs `omp`
+  with the first message as one quoted argument and none of Claude's flags; a request with a model, permission mode, thinking effort
+  or ultracode is refused (`omp_options`) before anything runs, since omp's own `config.yml` decides them. omp starts and resumes only
+  in herdr. A wrapper or alias around omp is still a Claude launcher unless `hub.json`'s `machines[].launchers` names
+  `agent_type: "omp"` (`docs/operations/config.md`); see `docs/integrations/omp.md`.
 - Not launchers: an alias named exactly `claude`, aliases running an internal Codex-fork CLI, Codex aliases doing other work (`cd x && codex`),
   or unrelated aliases (`ll`, `gst`…). If none exist, only default `claude` appears.
 - The list contains only names, gateways, and models; keys / tokens in aliases never leave node. “View definition” displays the alias text from `whence -f`, with keys redacted as usual.

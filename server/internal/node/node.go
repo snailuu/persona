@@ -100,54 +100,57 @@ type Node struct {
 	onAgentsList map[string]bool
 	// lastPanes: the pane each session was last seen live in (it is no longer live when its agent exits or is
 	// suspended), to tell the two apart when a send finds it gone on a host that cannot resume it.
-	lastPanes map[string]string
-	launches  map[string]claudeLaunch    // herdr pane -> how Persona started its Claude, for herdr's restore (herdrresume.go)
-	resumes   resumeLocks                // one resume report at a time per herdr pane (herdrresume.go reportResume)
-	panes     map[string]string          // pane id -> session id (learned from hooks)
-	layouts   map[string]layout          // host kind -> space / slot names from its last snapshot
-	shellTabs *shellTabs                 // the sweep's memory; nil: the process's own (shelltabs.go)
-	procs     map[string]*assistantProc  // headless assistant conversations (assistant.go)
-	titles    map[string]string          // session id -> title given before its transcript existed (rename.go retitle)
-	spare     *assistantProc             // warm process waiting for the next new conversation
-	akeys     map[string]*assistantProc  // the key a Codex conversation's MCP server reports until its thread exists
-	lastList  string                     // serialized last sessions.changed payload
-	lastRevs  map[string]int64           // session id -> rev as last pushed (sessions.changed or sessions.revs)
-	metas     map[string]quickMeta       // transcript path -> cached meta; deleted ones leave it (meta_prune.go)
-	goneDirs  map[string]time.Time       // cwd -> newest mtime of a deleted transcript pruned from metas (dirsByUse)
-	bgScans   map[string]*bgScan         // transcript path -> incremental background-task scan
-	panePIDs  map[string]panePID         // pane -> its claude pid (machines without herdr's claude integration)
-	paneSeen  map[string]time.Time       // claude pane without a host session id -> first seen (zero: there when node started)
-	modes     map[string]sessionModes    // session id -> mode / effort set from the app (modes.go)
-	terms     map[string]*termStream     // session id -> its terminal streaming to the hub (terminal.go)
-	fulls     map[string]*fullClient     // client id -> a full herdr client running for the web (fullclient.go)
-	focus     focusState                 // focus sync for the full views (focus.go)
-	suggests  map[string]*suggestState   // session id -> Claude's suggested next message (suggestion.go)
-	driving   map[string]bool            // session id -> Persona is working its TUI (a picker it opened is not "blocked")
-	dialogs   paneDialogs                // pane -> the dialog its last screen read showed (dialogstatus.go)
-	firstWait sync.WaitGroup             // first messages being checked (firstprompt.go)
-	engLists  sync.WaitGroup             // new engines' session lists being built in the background (useEngine)
-	lostFirst lostPrompts                // session id -> why its first message did not go in (firstprompt.go)
-	events    *herdrEvents               // herdr's event stream (herdrevents.go)
-	hostSig   map[string]*watcherSignals // change signals of the registered watcher hosts, by host kind (herdrevents.go)
-	cdirs     *claudeDirs                // Claude Code config directories in use (claudedirs.go)
-	hooks     *hookTurns                 // per-session turn counters from Persona's hooks (hookturn.go)
-	live      liveReplies                // the replies Claude is showing, from its MessageDisplay hook (livereply.go)
-	bgWait    bgWatch                    // whether background commands only wait (bgwait.go)
-	codices   *codexRegistry
-	usageWin  usageWindowsState // subscription rate-limit windows (usagewindows.go, #2432)
-	machineID string
-	sends     sentLog         // recent client_msg_ids (sendsafe.go)
-	echoes    echoLog         // sends tied to their transcript lines (echo.go)
-	typing    typingLocks     // one send at a time per session (sendsafe_turns.go)
-	sendOrder sendQueue       // sends waiting for a start, in the order they came (sendsafe_turns.go)
-	cx        codexCards      // Codex questions and approvals listed to the hub (codexask.go)
-	kept      map[string]bool // sessions always listed (node.configure keep_sessions)
-	forked    map[string]bool // sessions "Branch to new chat" made (fork.go): listed however short they are
-	starts    startLog        // sessions starting in the background (starting.go)
-	ups       uploads         // files arriving from the phone (upload.go)
-	sysOnce   sync.Once       // system: read once (metrics.go)
-	sys       proto.System
-
+	lastPanes  map[string]string
+	launches   map[string]claudeLaunch    // herdr pane -> how Persona started its Claude, for herdr's restore (herdrresume.go)
+	resumes    resumeLocks                // one resume report at a time per herdr pane (herdrresume.go reportResume)
+	panes      map[string]string          // pane id -> session id (learned from hooks)
+	familySeen map[string]time.Time       // pi-family pane listed by its fallback id -> first seen (pifamily.go)
+	idAlias    map[string]paneAlias       // fallback row id -> the session the pane turned out to run (pifamily.go)
+	ompDisk    *ompDiskState              // omp's sessions on disk (ompdisk.go)
+	ompFiles   map[string]string          // omp session id -> the session file herdr reported (ompresume.go)
+	layouts    map[string]layout          // host kind -> space / slot names from its last snapshot
+	shellTabs  *shellTabs                 // the sweep's memory; nil: the process's own (shelltabs.go)
+	procs      map[string]*assistantProc  // headless assistant conversations (assistant.go)
+	titles     map[string]string          // session id -> title given before its transcript existed (rename.go retitle)
+	spare      *assistantProc             // warm process waiting for the next new conversation
+	akeys      map[string]*assistantProc  // the key a Codex conversation's MCP server reports until its thread exists
+	lastList   string                     // serialized last sessions.changed payload
+	lastRevs   map[string]int64           // session id -> rev as last pushed (sessions.changed or sessions.revs)
+	metas      map[string]quickMeta       // transcript path -> cached meta; deleted ones leave it (meta_prune.go)
+	goneDirs   map[string]time.Time       // cwd -> newest mtime of a deleted transcript pruned from metas (dirsByUse)
+	bgScans    map[string]*bgScan         // transcript path -> incremental background-task scan
+	panePIDs   map[string]panePID         // pane -> its claude pid (machines without herdr's claude integration)
+	paneSeen   map[string]time.Time       // claude pane without a host session id -> first seen (zero: there when node started)
+	modes      map[string]sessionModes    // session id -> mode / effort set from the app (modes.go)
+	terms      map[string]*termStream     // session id -> its terminal streaming to the hub (terminal.go)
+	fulls      map[string]*fullClient     // client id -> a full herdr client running for the web (fullclient.go)
+	focus      focusState                 // focus sync for the full views (focus.go)
+	suggests   map[string]*suggestState   // session id -> Claude's suggested next message (suggestion.go)
+	driving    map[string]bool            // session id -> Persona is working its TUI (a picker it opened is not "blocked")
+	dialogs    paneDialogs                // pane -> the dialog its last screen read showed (dialogstatus.go)
+	firstWait  sync.WaitGroup             // first messages being checked (firstprompt.go)
+	engLists   sync.WaitGroup             // new engines' session lists being built in the background (useEngine)
+	lostFirst  lostPrompts                // session id -> why its first message did not go in (firstprompt.go)
+	events     *herdrEvents               // herdr's event stream (herdrevents.go)
+	hostSig    map[string]*watcherSignals // change signals of the registered watcher hosts, by host kind (herdrevents.go)
+	cdirs      *claudeDirs                // Claude Code config directories in use (claudedirs.go)
+	hooks      *hookTurns                 // per-session turn counters from Persona's hooks (hookturn.go)
+	live       liveReplies                // the replies Claude is showing, from its MessageDisplay hook (livereply.go)
+	bgWait     bgWatch                    // whether background commands only wait (bgwait.go)
+	codices    *codexRegistry
+	usageWin   usageWindowsState // subscription rate-limit windows (usagewindows.go, #2432)
+	machineID  string
+	sends      sentLog         // recent client_msg_ids (sendsafe.go)
+	echoes     echoLog         // sends tied to their transcript lines (echo.go)
+	typing     typingLocks     // one send at a time per session (sendsafe_turns.go)
+	sendOrder  sendQueue       // sends waiting for a start, in the order they came (sendsafe_turns.go)
+	cx         codexCards      // Codex questions and approvals listed to the hub (codexask.go)
+	kept       map[string]bool // sessions always listed (node.configure keep_sessions)
+	forked     map[string]bool // sessions "Branch to new chat" made (fork.go): listed however short they are
+	starts     startLog        // sessions starting in the background (starting.go)
+	ups        uploads         // files arriving from the phone (upload.go)
+	sysOnce    sync.Once       // system: read once (metrics.go)
+	sys        proto.System
 	// usageRetried: when a conversation's message was last sent again after its transcript's usage was repaired
 	// (assistant_usage.go): once in a while at most. Under mu; nil until the first.
 	usageRetried map[string]time.Time
@@ -562,6 +565,28 @@ func (n *Node) handle(ctx context.Context, method string, params json.RawMessage
 			return nil, fmt.Errorf("bad params: %w", err)
 		}
 	}
+	if strings.HasPrefix(method, "session.") {
+		rewrite := map[string]string{}
+		if id := n.resolveAlias(p.SessionID); p.SessionID != "" && id != p.SessionID { // a fallback row the pane named (pifamily.go)
+			p.SessionID = id
+			rewrite["session_id"] = id
+		}
+		if id := n.resolveAlias(p.ResumeSessionID); p.ResumeSessionID != "" && id != p.ResumeSessionID {
+			p.ResumeSessionID = id
+			rewrite["resume_session_id"] = id
+		}
+		if len(rewrite) > 0 {
+			var m map[string]any
+			if json.Unmarshal(params, &m) == nil {
+				for k, v := range rewrite {
+					m[k] = v
+				}
+				if raw, err := json.Marshal(m); err == nil {
+					params = raw
+				}
+			}
+		}
+	}
 	if n.codexBlocked(p.SessionID) && (strings.HasPrefix(method, "session.") || strings.HasPrefix(method, "terminal.") || method == "assistant.send" || method == "assistant.permissions.reset") {
 		return nil, refusal("identity_conflict", "会话 ID 与另一来源重复，不能判断操作目标；未读取或发送", nil)
 	}
@@ -586,6 +611,21 @@ func (n *Node) handle(ctx context.Context, method string, params json.RawMessage
 			return ok(n.setModes(ctx, p.SessionID, p.PermissionMode, p.Effort))
 		case "session.interrupt":
 			return ok(n.interruptCodex(ctx, p.SessionID))
+		}
+	}
+	// A stopped omp the node can resume itself: its disk row answers before a runtime's memory of it does (ompcalls.go),
+	// so a runtime that has gone does not keep its session away. A session whose file a live pane may be writing is
+	// never resumed: that would start a second omp on the same session.
+	if h, _, _ := n.runtimes.belongs(p.SessionID); h == nil {
+		if d, ok := n.ompDiskSession(p.SessionID); ok {
+			if n.ompDiskWrittenByLivePane(d) {
+				return nil, refusal("omp_resume_unknown", "这个 omp 会话还在运行，不在手机上再开一个：请在电脑上继续。", nil)
+			}
+			if _, stopped := n.ompSession(p.SessionID); stopped {
+				if res, err, handled := n.ompOfflineCalls(ctx, method, p.SessionID, params); handled {
+					return res, err
+				}
+			}
 		}
 	}
 	if method == "session.retire" { // before the runtimes: a session another tool owns is refused, not handed on
@@ -820,6 +860,9 @@ func (n *Node) handle(ctx context.Context, method string, params json.RawMessage
 			if kind == "" {
 				kind = launcherAgentType(p.Launcher)
 			}
+			if kind == ompAgent { // omp's own config decides, not a start's arguments (start_agent.go)
+				return nil, refusal("omp_options", ompOptionsRefusal, nil)
+			}
 			if _, runtime := engineRuntimes[cmp.Or(p.Host, n.defaultKind())]; runtime { // the start's host is a runtime (Paseo)
 				kind = "runtime"
 			}
@@ -850,7 +893,7 @@ func (n *Node) handle(ctx context.Context, method string, params json.RawMessage
 			return map[string]any{"session": s}, err
 		}
 		// Only Claude Code has a session id before it starts; another agent picks its own (start_agent.go).
-		if p.Async && p.ResumeSessionID == "" && (p.AgentType == "" || p.AgentType == "claude") {
+		if p.Async && p.ResumeSessionID == "" && (p.AgentType == "" || p.AgentType == "claude") && launcherAgentType(p.Launcher) != ompAgent {
 			s, err := n.startAsyncIn(p.Host, p.SessionID, p.Cwd, p.Launcher, p.Prompt, p.WorkspaceID, p.PermissionMode, p.Effort, tab, modelExecution{Model: p.Model, Effort: p.Effort, UseEffort: p.ModelFingerprint != "", Fingerprint: p.ModelFingerprint, Ultracode: p.Ultracode})
 			return map[string]any{"session": s}, err
 		}

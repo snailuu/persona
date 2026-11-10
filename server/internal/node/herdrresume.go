@@ -94,6 +94,18 @@ func (n *Node) agentResumeArgv(spec agentLaunch, id string) (argv []string, ok b
 	if kind == "" || kind == "claude" {
 		return n.claudeResumeArgv(spec, id)
 	}
+	if kind == ompAgent { // omp resumes a session file, never a pane or an id (ompresume.go)
+		file := n.ompKnownFile(id)
+		if file == "" {
+			return nil, false
+		}
+		cmd := n.launcherCommandQ(spec.Launcher, dquote) + " --resume " + dquote(file)
+		cmd = n.agentCommand(cmd, dquote, herdrPaneShell())
+		if strings.Contains(cmd, "'") {
+			return nil, false
+		}
+		return []string{"eval", cmd}, true
+	}
 	cmd := withHerdrAgent(resumeHerdrAgent(kind), n.launcherCommandQ(spec.Launcher, dquote)+" resume "+id)
 	cmd = n.agentCommand(cmd, dquote, herdrPaneShell())
 	if strings.Contains(cmd, "'") || !validID(id) {
@@ -145,7 +157,11 @@ func (n *Node) reportResume(ctx context.Context, h *herdrHost, pane string, spec
 	n.mu.Unlock()
 	argv, ok := n.agentResumeArgv(spec, spec.ID)
 	if !ok {
-		n.logf("herdr resume: %s (%s) not given a resume command (it cannot be said without an apostrophe)", pane, spec.ID)
+		if spec.Agent == ompAgent && n.ompKnownFile(spec.ID) == "" {
+			n.logf("herdr resume: %s (%s) is an omp with no known session file: no resume command reported", pane, spec.ID)
+		} else {
+			n.logf("herdr resume: %s (%s) not given a resume command (it cannot be said without an apostrophe)", pane, spec.ID)
+		}
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)

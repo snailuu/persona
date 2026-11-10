@@ -43,7 +43,7 @@ func interactionPayloadIn(l i18n.Lang, ix proto.Interaction, machine string) map
 	if ix.ToolName == workCardTool { // the manager asks on an agent's behalf (agents_link.go)
 		title = i18n.T(l, "push.decide_title")
 	}
-	name := map[string]string{"codex": "Codex", "traex": "TRAEX"}[ix.Agent]
+	name := map[string]string{"codex": "Codex", "traex": "TRAEX", "omp": "omp"}[ix.Agent]
 	if name == "" && ix.Agent != "" && ix.Agent != "claude" {
 		name = ix.AgentLabel // an agent runtime's card (docs/integrations/runtimes.md): "DSH needs your permission"
 	}
